@@ -1,0 +1,16 @@
+
+
+Order Deny,Allow
+Allow from 192.168 127 10 
+# http://validator.w3.org/
+Allow from 128.30.52
+Allow from w3.org.
+Allow from 185.26.126.112
+# http://www.cynthiasays.com/Home.aspx
+Allow from 172.85.50
+# kerlaz
+Allow from 78.238.121.213
+# iza
+Allow from 82.240.58.79
+#Allow from All
+Deny from all

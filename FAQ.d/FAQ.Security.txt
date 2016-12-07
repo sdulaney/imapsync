@@ -1,0 +1,132 @@
+#!/bin/cat
+# $Id: FAQ.Security.txt,v 1.9 2016/08/19 17:53:21 gilles Exp gilles $
+
+This documentation is also at http://imapsync.lamiral.info/#doc
+
+=======================================================
+  Imapsync tips about security. Issues and solutions.
+=======================================================
+
+=======================================================================
+Q. Does imapsync support IMAP TLS?
+
+R. Use --tls1 and/or --tls2 options
+
+--tls1 tells imapsync to use tls on host1.
+--tls2 tells imapsync to use tls on host2.
+
+
+=======================================================================
+Q. Does imapsync support IMAP over SSL (IMAPS)?
+
+R. Yes natively since release 1.161. 
+still, 2 ways, at least to use ssl:
+
+a) Use native --ssl1 and/or --ssl2 options
+
+--ssl1 tells imapsync to use ssl on host1.
+--ssl2 tells imapsync to use ssl on host2.
+
+
+b) Use stunnel
+   http://www.stunnel.org/
+   Assuming there is an imaps (993) server on imap.foo.org,
+   on your localhost machine (or bar machine) run :
+       stunnel -c -d imap -r imap.foo.org:imaps
+   or using names instead of numbers 
+       stunnel -c -d 143 -r imap.foo.org:993
+   then use imapsync on localhost (or bar machine) imap (143) port.
+   If the local port 143 is already taken then use a free one, 10143.
+
+c) Other example for gmail with no root access to open port 143
+
+   stunnel -f -P '' -c -d 9993 -r imap.gmail.com:993
+
+Then, to access gmail as host2 use:
+
+  imapsync ... --host2 localhost --port2 9993 --nossl2 
+
+
+=======================================================================
+Q. How can I manually test a login via ssl?
+
+R. Use ncat or telnet-ssl like in this example:
+
+ncat --ssl -C  imap.gmail.com 993
+* OK Gimap ready for requests from 78.196.254.58 q1mb175739668wix
+a LOGIN "gilles.lamiral@gmail.com" "secret" 
+* CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE ... ESEARCH
+a OK gilles.lamiral@gmail.com Gilles Lamiral authenticated (Success)
+b LOGOUT
+* BYE LOGOUT Requested
+b OK 73 good day (Success)
+
+The client part to type is "a LOGIN ..." and "b LOGOUT" without
+the double-quotes. 
+
+=======================================================================
+Q.How to test a ssl imap connection without imapsync?
+
+R1.Use openssl command like the following, 
+   an example with imap.gmail.com server:
+
+  openssl s_client -crlf -connect imap.gmail.com:993
+
+The previous command is an interactive connection, hit ctrl-c
+to finish it. If you want to finish it gently, then use: 
+
+  { sleep 2; echo "a logout"; sleep 1; } | openssl s_client -crlf  -connect imap.gmail.com:993
+
+======================================================================
+Q. Imapsync used to use SSL_VERIFY_PEER now it uses SSL_VERIFY_NONE.
+   How can I change this back to the more secure SSL_VERIFY_PEER?
+
+
+R2. After imapsync 1.673, 
+    to set SSL_verify_mode to SSL_VERIFY_PEER on host1
+    and    SSL_verify_mode to SSL_VERIFY_NONE on host2
+
+  imapsync ...  --ssl1 --ssl2  \
+                --sslargs1 SSL_verify_mode=1 \
+                --sslargs2 SSL_verify_mode=0 
+
+See perldoc IO::Socket::SSL for all possibilities, also at
+http://search.cpan.org/perldoc?IO%3A%3ASocket%3A%3ASSL
+
+It might be possible you need an extra:
+                --sslargs1 SSL_ca_file=/etc/ssl/certs/ca-certificates.crt 
+to help the ssl software verifying the server certificate.
+The file ca-certificates.crt may be elsewhere on your system, even 
+named differently.
+
+=======================================================================
+Q. How can I manually test a login via ssl?
+
+R. Use ncat or telnet-ssl like in this example:
+
+ncat --ssl -C  imap.gmail.com 993
+* OK Gimap ready for requests from 78.196.254.58 q1mb175739668wix
+a LOGIN "gilles.lamiral@gmail.com" "secret" 
+* CAPABILITY IMAP4rev1 UNSELECT IDLE NAMESPACE ... ESEARCH
+a OK gilles.lamiral@gmail.com Gilles Lamiral authenticated (Success)
+b LOGOUT
+* BYE LOGOUT Requested
+b OK 73 good day (Success)
+
+The client part to type is "a LOGIN ..." and "b LOGOUT" without
+the double-quotes. 
+
+
+=======================================================================
+Q: How to have an imaps server?
+
+R. 
+a) Install one 
+
+b) or use stunnel :
+   Assuming there is an imap (143) server on localhost
+        stunnel  -d 993 -r 143 -f
+
+c) or use stunnel on inetd
+   imaps stream  tcp nowait cyrus /usr/sbin/stunnel -s cyrus -p /etc/ssl/certs/imapd.pem -r localhost:imap2
+

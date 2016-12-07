@@ -1,0 +1,1232 @@
+#!/usr/bin/perl
+
+# structure
+# pod documentation
+# pragmas
+# main program
+# global variables initialisation
+# get_options(  ) ;
+# default values
+# folder loop
+# subroutines
+# IMAPClient 3.xx ads
+
+# pod documentation
+
+=pod
+
+=head1 NAME 
+
+imapsync - IMAP synchronisation, sync, copy or migration tool.
+Synchronises mailboxes between two imap servers.
+Good at IMAP migration. More than 52 different IMAP server softwares
+supported with success, few failures.
+
+$Revision: 1.601 $
+
+=head1 SYNOPSIS
+
+To synchronize imap account "foo" on "imap.truc.org"
+           to  imap account "bar" on "imap.trac.org"
+           with foo password "secret1"
+           and  bar password "secret2":
+
+  imapsync \
+   --host1 imap.truc.org --user1 foo --password1 secret1 \
+   --host2 imap.trac.org --user2 bar --password2 secret2
+
+=head1 INSTALL
+
+ imapsync works fine under any Unix OS with perl.
+ imapsync works fine under Windows (2000, XP, Vista, Seven) 
+ with Strawberry Perl (5.10, 5.12 or higher)
+ or as a standalone binary software imapsync.exe
+
+imapsync can be available directly on the following distributions:
+FreeBSD, Debian, Ubuntu, Gentoo, Fedora,
+NetBSD, Darwin, Mandriva and OpenBSD.
+
+ Purchase latest imapsync at
+ http://imapsync.lamiral.info/
+
+ You'll receive a link to a compressed tarball called imapsync-x.xx.tgz
+ where x.xx is the version number. Untar the tarball where
+ you want (on Unix):
+
+ tar xzvf  imapsync-x.xx.tgz
+
+ Go into the directory imapsync-x.xx and read the INSTALL file.
+ The INSTALL file is also at 
+ http://imapsync.lamiral.info/INSTALL
+
+ The freecode (was freshmeat) record is at 
+ http://freecode.com/projects/imapsync
+
+=head1 USAGE
+
+ imapsync [options]
+
+To get a description of each option just run imapsync like this:
+
+  imapsync --help
+  imapsync
+
+The option list:
+
+  imapsync [--host1 server1]  [--port1 <num>]
+           [--user1 <string>] [--passfile1 <string>]
+           [--host2 server2]  [--port2 <num>]
+           [--user2 <string>] [--passfile2 <string>]
+           [--ssl1] [--ssl2]
+	   [--tls1] [--tls2]
+           [--authmech1 <string>] [--authmech2 <string>]
+           [--proxyauth1] [--proxyauth2]
+	   [--domain1] [--domain2] 
+           [--authmd51] [--authmd52]
+           [--folder <string> --folder <string> ...]
+           [--folderrec <string> --folderrec <string> ...]
+           [--include <regex>] [--exclude <regex>]
+           [--prefix2 <string>] [--prefix1 <string>] 
+           [--regextrans2 <regex> --regextrans2 <regex> ...]
+           [--sep1 <char>]
+           [--sep2 <char>]
+           [--justfolders] [--justfoldersizes] [--justconnect] [--justbanner]
+           [--syncinternaldates]
+           [--idatefromheader]
+           [--syncacls]
+           [--regexmess <regex>] [--regexmess <regex>]
+           [--maxsize <int>]
+	   [--minsize <int>]
+           [--maxage <int>]
+           [--minage <int>]
+           [--search <string>]
+           [--search1 <string>]
+           [--search2 <string>]
+           [--skipheader <regex>]
+           [--useheader <string>] [--useheader <string>]
+	   [--nouid1] [--nouid2] 
+	   [--usecache]
+           [--skipsize] [--allowsizemismatch]
+           [--delete] [--delete2]
+           [--expunge] [--expunge1] [--expunge2] [--uidexpunge2]
+	   [--delete2folders] [--delete2foldersonly] [--delete2foldersbutnot]
+           [--subscribed] [--subscribe] [--subscribe_all] 
+           [--nofoldersizes] [--nofoldersizesatend] 
+           [--dry]
+           [--debug] [--debugimap][--debugimap1][--debugimap2]
+           [--timeout <int>] 
+           [--split1] [--split2] 
+           [--reconnectretry1 <int>] [--reconnectretry2 <int>]
+	   [--noreleasecheck]
+           [--releasecheck]
+	   [--pidfile <filepath>]
+	   [--tmpdir  <dirpath>]
+           [--nolog] 
+           [--log] 
+           [--logfile <filepath>]
+           [--version] [--help]
+	   [--tests] [--tests_debug]
+  
+=cut
+# comment
+
+=pod
+
+=head1 DESCRIPTION
+
+The command imapsync is a tool allowing incremental and
+recursive imap transfer from one mailbox to another. 
+
+By default all folders are transferred, recursively, all 
+possible flags (\Seen \Answered \Flagged etc.) are synced too.
+
+We sometimes need to transfer mailboxes from one imap server to
+another. This is called migration.
+
+imapsync is a good tool because it reduces the amount
+of data transferred by not transferring a given message 
+if it is already on both sides. Same headers
+and the transfer is done only once. All flags are
+preserved, unread will stay unread, read will stay read,
+deleted will stay deleted. You can stop the transfer at any
+time and restart it later, imapsync works well with bad 
+connections.
+
+You can decide to delete the messages from the source mailbox
+after a successful transfer, it can be a good feature when migrating
+live mailboxes since messages will be only on one side.
+In that case, use the --delete option. Option --delete implies 
+also option --expunge so all messages marked deleted on host1 
+will be really deleted.
+(you can use --noexpunge to avoid this but I don't see any
+good real world scenario for the combinaison --delete --noexpunge).
+
+You can also just synchronize a mailbox B from another mailbox A
+in case you just want to keep a "live" copy of A in B. 
+In that case --delete2 can be used, it deletes messages in host2
+folder B that are not in host1 folder A.
+
+imapsync is not adequate for maintaining two active imap accounts 
+in synchronization where the user plays independently on both sides.
+Use offlineimap (written by John Goerzen) or mbsync (written by 
+Michael R. Elkins) for 2 ways synchronizations.
+
+
+=head1 OPTIONS
+
+To get a description of each option just invoke: 
+
+imapsync --help
+
+=head1 HISTORY
+
+I wrote imapsync because an enterprise (basystemes) paid me to install
+a new imap server without losing huge old mailboxes located on a far
+away remote imap server accessible by a low bandwidth link. The tool
+imapcp (written in python) could not help me because I had to verify
+every mailbox was well transferred and delete it after a good
+transfer. imapsync started life as a copy_folder.pl patch.
+The tool copy_folder.pl comes from the Mail-IMAPClient-2.1.3 perl
+module tarball source (in the examples/ directory of the tarball).
+
+=head1 EXAMPLE
+
+While working on imapsync parameters please run imapsync in
+dry mode (no modification induced) with the --dry
+option. Nothing bad can be done this way.
+
+To synchronize the imap account "buddy" (with password "secret1") 
+on host "imap.src.fr" to the imap account "max" (with password "secret2") 
+on host "imap.dest.fr":
+
+ imapsync --host1 imap.src.fr  --user1 buddy --password1 secret1 \
+          --host2 imap.dest.fr --user2 max   --password2 secret2
+
+Then you will have max's mailbox updated from buddy's
+mailbox.
+
+=head1 SECURITY
+
+You can use --passfile1  instead of --password1 to give the
+password since it is safer. With --password1 option any user 
+on your host can see the password by using the 'ps auxwwww'
+command. Using a variable (like $PASSWORD1) is also
+dangerous because of the 'ps auxwwwwe' command. So, saving
+the password in a well protected file (600 or rw-------) is
+the best solution.
+
+imasync is not totally protected against sniffers on the
+network since passwords may be transferred in plain text
+if CRAM-MD5 is not supported by your imap servers.  Use
+--ssl1 (or --tls1) and --ssl2 (or --tls2) to enable 
+encryption on host1 and host2.
+
+You may authenticate as one user (typically an admin user),
+but be authorized as someone else, which means you don't
+need to know every user's personal password.  Specify
+--authuser1 "adminuser" to enable this on host1.  In this
+case, --authmech1 PLAIN will be used by default since it
+is the only way to go for now. So don't use --authmech1 SOMETHING
+with --authuser1 "adminuser", it will not work.
+Same behavior with the --authuser2 option.
+Authenticate with an admin account must be supported by your
+imap server to work with imapsync.
+
+When working on Sun/iPlanet/Netscape IMAP servers you must use 
+--proxyauth1 to enable administrative user to masquerade as another user. 
+Can also be used on destination server with --proxyauth2 
+
+You can authenticate with OAUTH when transfering from Google Apps.
+The consumer key will be the domain part of the --user, and the
+--password will be used as the consumer secret. It does not work
+with Google Apps free edition. 
+
+=head1 EXIT STATUS
+
+imapsync will exit with a 0 status (return code) if everything went good.
+Otherwise, it exits with a non-zero status.
+
+So if you have an unreliable internet connection, you can use this loop 
+in a Bourne shell:
+
+        while ! imapsync ...; do 
+              echo imapsync not complete
+        done
+
+=head1 LICENSE
+
+imapsync is free, open, public but not always gratis software 
+cover by the NOLIMIT Public License.
+See the LICENSE file included in the distribution or just read this
+simple sentence as it is the licence text:
+No limit to do anything with this work and this license.
+
+=head1 MAILING-LIST
+
+The public mailing-list may be the best way to get free support.
+
+To write on the mailing-list, the address is:
+<imapsync@linux-france.org>
+
+To subscribe, send any message (even empty) to:
+<imapsync-subscribe@listes.linux-france.org>
+then just reply to the confirmation message.
+
+To unsubscribe, send a message to:
+<imapsync-unsubscribe@listes.linux-france.org>
+
+To contact the person in charge for the list:
+<imapsync-request@listes.linux-france.org>
+
+The list archives are available at:
+http://www.linux-france.org/prj/imapsync_list/
+So consider that the list is public, anyone
+can see your post. Use a pseudonym or do not
+post to this list if you want to stay private.
+
+Thank you for your participation.
+
+=head1 AUTHOR
+
+Gilles LAMIRAL <gilles.lamiral@laposte.net>
+
+Feedback good or bad is very often welcome.
+
+Gilles LAMIRAL earns his living by writing, installing,
+configuring and teaching free, open and often gratis
+softwares. It used to be "always gratis" but now it is
+"often" because imapsync is sold by its author, a good
+way to stay maintening and supporting free open public 
+softwares (see the license) over decades.
+
+=head1 BUG REPORT GUIDELINES
+
+Help me to help you: follow the following guidelines.
+
+Report any bugs or feature requests to the public mailing-list 
+or to the author.
+
+Before reporting bugs, read the FAQ, the README and the
+TODO files. http://imapsync.lamiral.info/
+
+Upgrade to last imapsync release, maybe the bug
+is already fixed.
+
+Upgrade to last Mail-IMAPClient Perl module.
+http://search.cpan.org/dist/Mail-IMAPClient/
+maybe the bug is already fixed there.
+
+Make a good title with word "imapsync" in it (my spam filter won't filter it), 
+Try to write an email title with more words than just "imapsync" or "problem",
+a good title is made of keywords summary, but not too long (one visible line).
+
+Help us to help you: in your report, please include:
+
+ - imapsync version.
+
+ - output near the first failures, a few lines before is good to get the context
+   of the issue. First failures messages are often more significant than 
+   the last ones. 
+ 
+ - if the issue is always related to the same messages, include the output 
+   with --debug --debugimap, near the failure point. For example,
+   Isolate a buggy message or two in a folder 'BUG' and use 
+
+     imapsync ... --folder 'BUG' --debug --debugimap 
+
+ - imap server softwares on both sides and their version number.
+
+ - imapsync with all the options you use,  the full command line
+   you use (except the passwords of course). 
+
+ - IMAPClient.pm version.
+
+ - the run context. Do you run imapsync.exe, a unix binary 
+   or the perl script imapsync.
+
+ - operating system running imapsync.
+
+ - virtual software context (vmware, xen etc.)
+
+ - operating systems on both sides and the third side in case
+   you run imapsync on a foreign host from the both.
+
+Most of those values can be found as a copy/paste at the begining of the output,
+so a carbon copy of the output is a very easy and very good debug report for me.
+
+One time in your life, read the paper 
+"How To Ask Questions The Smart Way"
+http://www.catb.org/~esr/faqs/smart-questions.html
+and then forget it.
+
+=head1 IMAP SERVERS 
+
+Failure stories reported in the past with the following 6 imap servers.
+Maybe last imapsync release can run successfully with them.
+Don't hesitate to have a try, It's been a long time since last failure occured,
+I will help you and make efforts to switch them to the success list, 
+that's my job.
+
+ - MailEnable 1.54 (Proprietary) but MailEnable 4.23 is supported. 
+ - DBMail 0.9, 2.0.7 (GPL). But DBMail 1.2.1 is supported.
+   Patient and confident testers are welcome.
+ - Imail 7.04 (maybe).
+ - (2011) MDaemon 12.0.3 as host2 but MDaemon is supported as host1.
+   MDaemon is simply buggy with the APPEND IMAP command with 
+   any IMAP email client.
+ - Hotmail since hotmail.com does not provide IMAP access
+ - Outlook.com since outlook.com does not provide IMAP access
+
+Success stories reported with the following 62 imap servers 
+(software names are in alphabetic order): 
+
+ - 1und1 H mimap1 84498 [host1] H mibap4 95231 [host1]
+ - a1.net imap.a1.net IMAP4 Ready [host1]
+ - Apple Server 10.6 Snow Leopard [host1]
+ - Archiveopteryx 2.03, 2.04, 2.09, 2.10 [host2], 3.0.0 [host2]
+   (OSL 3.0) http://www.archiveopteryx.org/
+ - Atmail 6.x [host1]
+ - Axigen Mail Server Version 8.0.0
+ - BincImap 1.2.3 (GPL) (http://www.bincimap.org/)
+ - CommuniGatePro server (Redhat 8.0) (Solaris), CommuniGate Pro 5.2.17[host2] (CentOS 5.4)
+ - Courier IMAP 1.5.1, 2.2.0, 2.1.1, 2.2.1, 3.0.8, 3.0.3, 4.1.1 (GPL) 
+   (http://www.courier-mta.org/)
+ - Critical Path (7.0.020)
+ - Cyrus IMAP 1.5, 1.6, 
+   2.1, 2.1.15, 2.1.16, 2.1.18 
+   2.2.1, 2.2.2-BETA, 2.2.3, 2.2.6, 2.2.10, 2.2.12, 2.2.13,
+   2.3-alpha (OSI Approved), 2.3.1, 2.3.7, 2.3.16
+   (http://asg.web.cmu.edu/cyrus/)
+ - David Tobit V8 (proprietary Message system).
+ - Deerfield VisNetic MailServer 5.8.6 [host1] (http://www.deerfield.net/products/visnetic-mailserver/) 
+ - DBMail 1.2.1, 2.0.4, 2.0.9, 2.2rc1 (GPL) (http://www.dbmail.org/).
+   2.0.7 seems buggy.
+ - DBOX 2.41 System [host1] (http://www.dbox.handshake.de/).
+ - Deerfield VisNetic MailServer 5.8.6 [host1]
+ - dkimap4 [host1]
+ - Domino (Notes) 4.61 [host1], 6.5 [host1], 5.0.6, 5.0.7, 7.0.2, 6.0.2CF1, 
+   7.0.1 [host1], 8.0.1 [host1], 8.5.2 [host2], 8.5.3 [host1]
+ - Dovecot 0.99.10.4, 0.99.14, 0.99.14-8.fc4, 1.0-0.beta2.7, 
+   1.0.0 [dest/source] (LGPL) (http://www.dovecot.org/)
+ - Eudora WorldMail v2
+ - FirtClass 9 [host1] Read the FAQ! (http://www.firstclass.com/)
+ - FTGate (http://www.ftgate.com/)
+ - Fusemail imap.fusemail.net:143 (https://www.fusemail.com/).
+ - Gimap (Gmail imap)
+ - GMX IMAP4 StreamProxy.
+ - Groupwise IMAP (Novell) 6.x and 7.0. Buggy so see the FAQ.
+ - hMailServer 5.40-B1950 [host12], 5.3.3 [host2], 4.4.1 [host1] (see FAQ)
+ - IceWarp Server 10.4.5 [host1] (http://www.icewarp.com/)
+ - iPlanet Messaging server 4.15, 5.1, 5.2
+ - IMail 7.15 (Ipswitch/Win2003), 8.12, 11.03 [host1]
+ - Kerio 7.2.0 Patch 1 [host12], Kerio 8 [host1]
+ - Mail2World IMAP4 Server 2.5 [host1] (http://www.mail2world.com/)
+ - MailEnable 4.23 [host1] [host2], 4.26 [host1][host2], 5 [host1]
+ - MDaemon 7.0.1, 8.0.2, 8.1, 9.5.4 (Windows server 2003 R2 platform), 
+   9.6.5 [host1], 12 [host2], 12.0.3 [host1], 12.5.5 [host1],
+ - Mercury 4.1 (Windows server 2000 platform)
+ - Microsoft Exchange Server 5.5, 6.0.6249.0[host1], 6.0.6487.0[host1], 
+   6.5.7638.1 [host2], 6.5 [host1], Exchange 2007 SP1 (with Update Rollup 2), 
+   Exchange2007-EP-SP2,
+   Exchange 2010 RTM (Release to Manufacturing) [host2],
+   Exchange 2010 SP1 RU2[host2],
+ - Mirapoint, 4.1.9-GA [host1]
+ - Netscape Mail Server 3.6 (Wintel !)
+ - Netscape Messaging Server 4.15 Patch 7
+ - Office 365 [host1] [host2]
+ - OpenMail IMAP server B.07.00.k0 (Samsung Contact ?)
+ - OpenWave
+ - Oracle Beehive [host1]
+ - Parallels Plesk Panel 9.x [host2] 11.x [host2] (http://www.parallels.com/)
+ - Qualcomm Worldmail (NT)
+ - QQMail IMAP4Server [host1] [host2] https://en.mail.qq.com/
+ - RackSpace hoster secure.emailsrvr.com:993 http://www.rackspace.com/
+ - Rockliffe Mailsite 5.3.11, 4.5.6
+ - Samsung Contact IMAP server 8.5.0
+ - Scalix v10.1, 10.0.1.3, 11.0.0.431, 11.4.6
+ - Sendmail Mail Store IMAP4rev1 (5.5.6/mstore-5-5-build-1874 [host1].
+ - SmarterMail, Smarter Mail 5.0 Enterprise, Smarter Mail 5.5 [host1], 
+   SmarterMail Professional 10.2 [host1], Smarter Mail 11.7 [host1][host2].
+ - Softalk Workgroup Mail 7.6.4 [host1].
+ - SunONE Messaging server 5.2, 6.0 (SUN JES - Java Enterprise System)
+ - Sun Java(tm) System Messaging Server 6.2-2.05,  6.2-7.05, 6.3
+ - Surgemail 3.6f5-5, 6.3d-72 [host2]
+ - UW-imap servers (imap-2000b) rijkkramer IMAP4rev1 2000.287
+   (RedHat uses UW like 2003.338rh), v12.264 Solaris 5.7 (OSI Approved) 
+   (http://www.washington.edu/imap/)
+ - UW - QMail v2.1
+ - VMS, Imap part of TCP/IP suite of VMS 7.3.2
+ - Yahoo [host1]
+ - Zarafa 6,40,0,20653 [host1] (http://www.zarafa.com/)
+ - Zarafa ZCP 7.1.4 IMAP Gateway [host2]
+ - Zimbra-IMAP 3.0.1 GA 160, 3.1.0 Build 279, 4.0.5, 4.5.2, 4.5.6, 
+   Zimbra 5.0.24_GA_3356.RHEL4 [host1], 5.5, 6.x
+
+Please report to the author any success or bad story with
+imapsync and do not forget to mention the IMAP server
+software names and version on both sides. This will help
+future users. To help the author maintaining this section
+report the two lines at the begining of the output if they
+are useful to know the softwares. Example:
+
+ Host1 software:* OK louloutte Cyrus IMAP4 v1.5.19 server ready
+ Host2 software:* OK Courier-IMAP ready
+
+You can use option --justconnect to get those lines.
+Example:
+
+  imapsync --host1 imap.troc.org --host2 imap.trac.org --justconnect
+
+
+=head1 HUGE MIGRATION
+
+Pay special attention to options 
+--subscribed
+--subscribe
+--delete
+--delete2
+--delete2folders
+--maxage
+--minage
+--maxsize
+--useuid
+--usecache
+
+If you have many mailboxes to migrate think about a little
+shell program. Write a file called file.txt (for example)
+containing users and passwords.
+The separator used in this example is ';'
+
+The file.txt file contains:
+
+user001_1;password001_1;user001_2;password001_2
+user002_1;password002_1;user002_2;password002_2
+user003_1;password003_1;user003_2;password003_2
+user004_1;password004_1;user004_2;password004_2
+user005_1;password005_1;user005_2;password005_2
+...
+
+On Unix the shell program can be:
+
+ { while IFS=';' read  u1 p1 u2 p2; do 
+	imapsync --host1 imap.side1.org --user1 "$u1" --password1 "$p1" \
+                 --host2 imap.side2.org --user2 "$u2" --password2 "$p2" ...
+ done ; } < file.txt
+
+On Windows the batch program can be:
+
+  FOR /F "tokens=1,2,3,4 delims=; eol=#" %%G IN (file.txt) DO imapsync ^
+  --host1 imap.side1.org --user1 %%G --password1 %%H ^
+  --host2 imap.side2.org --user2 %%I --password2 %%J ...
+
+The ... have to be replaced by nothing or any imapsync option.
+Welcome in shell programming !
+
+You will find already written scripts at 
+http://imapsync.lamiral.info/examples/
+
+
+
+=head1 Hacking
+
+Feel free to hack imapsync as the NOLIMIT license permits it.
+
+=head1 Links
+
+Entries for imapsync:
+  http://www.imap.org/products/showall.php
+
+
+=head1 SIMILAR SOFTWARES
+
+  imap_tools    : http://www.athensfbc.com/imap_tools
+  offlineimap   : https://github.com/nicolas33/offlineimap
+  mbsync        : http://isync.sourceforge.net/
+  mailsync      : http://mailsync.sourceforge.net/
+  mailutil      : http://www.washington.edu/imap/
+                  part of the UW IMAP tookit.
+  imaprepl      : http://www.bl0rg.net/software/
+                  http://freecode.com/projects/imap-repl/
+  imapcopy      : http://home.arcor.de/armin.diehl/imapcopy/imapcopy.html
+  migrationtool : http://sourceforge.net/projects/migrationtool/
+  imapmigrate   : http://sourceforge.net/projects/cyrus-utils/
+  wonko_imapsync: http://wonko.com/article/554
+                  see also file W/tools/wonko_ruby_imapsync
+  exchange-away : http://exchange-away.sourceforge.net/
+  pop2imap      : http://www.linux-france.org/prj/pop2imap/
+
+
+Feedback (good or bad) will often be welcome.
+
+$Id: imapsync,v 1.601 2014/10/28 10:48:07 gilles Exp gilles $
+
+=cut
+
+
+# pragmas
+
+use strict ;
+use warnings ;
+++$| ;
+use Carp ;
+use Getopt::Long ;
+use Mail::IMAPClient 3.29 ;
+use Digest::MD5  qw( md5 md5_hex md5_base64 ) ;
+use Digest::HMAC_SHA1 qw( hmac_sha1 ) ;
+#use Term::ReadKey ;
+#use IO::Socket::SSL ;
+use MIME::Base64 ;
+use English '-no_match_vars' ;
+use File::Basename ;
+use POSIX qw(uname SIGALRM) ;
+use Fcntl ;
+use File::Spec ;
+use File::Path qw( mkpath rmtree ) ;
+use File::Copy::Recursive ;
+use IO::Socket qw(:crlf SOL_SOCKET SO_KEEPALIVE) ;
+use Errno qw(EAGAIN EPIPE ECONNRESET) ;
+use File::Glob qw( :glob ) ;
+use IO::File ;
+use Time::Local ;
+use Time::HiRes qw( time sleep ) ;
+use Test::More 'no_plan' ;
+use IPC::Open3 'open3' ;
+use IO::Tee ;
+use Unicode::String ;
+#use Unix::Sysexits ;
+
+# global variables
+
+my(
+        $rcs, $pidfile, $pidfilelocking, 
+	$debug, $debugimap, $debugimap1, $debugimap2, $debugcontent, $debugflags,
+	$debugLIST, $debugsleep, $debugdev, $debugmemory, $debugmaxlinelength,
+	$nb_errors,
+	$host1, $host2, $port1, $port2,
+	$user1, $user2, $domain1, $domain2, 
+	$password1, $password2, $passfile1, $passfile2,
+        @folder, @include, @exclude, @folderrec,
+        @folderfirst, @folderlast,
+        $prefix1, $prefix2, 
+        @regextrans2, @regexmess, @regexflag,
+	$flagsCase, $filterflags, $syncflagsaftercopy,
+        $sep1, $sep2,
+	$syncinternaldates,
+        $idatefromheader,
+        $syncacls,
+        $fastio1, $fastio2, 
+	$maxsize, $minsize, $maxage, $minage,
+        $exitwhenover,
+        $search, $search1, $search2, 
+        $skipheader, @useheader,
+        $skipsize, $allowsizemismatch, $foldersizes, $foldersizesatend, $buffersize,
+	$delete, $delete2, $delete2duplicates,
+        $expunge, $expunge1, $expunge2, $uidexpunge2, $dry,
+        $justfoldersizes,
+        $authmd5, $authmd51, $authmd52, 
+        $subscribed, $subscribe, $subscribe_all,
+	$version, $help, 
+        $justconnect, $justfolders, $justbanner,
+        $fast,
+        
+        $total_bytes_transferred,
+        $total_bytes_skipped,
+        $total_bytes_error,
+        $nb_msg_transferred, 
+	$nb_msg_skipped, 
+	$nb_msg_skipped_dry_mode,
+	$h1_nb_msg_duplicate,
+	$h2_nb_msg_duplicate,
+	$h1_nb_msg_noheader,
+	$h2_nb_msg_noheader,
+	$h1_total_bytes_duplicate,
+	$h2_total_bytes_duplicate,
+	$h1_nb_msg_deleted,
+	$h2_nb_msg_deleted,
+        
+        $h1_bytes_processed, 
+        $h1_nb_msg_processed,
+        $h1_nb_msg_at_start, $h1_bytes_start,
+        $h2_nb_msg_start, $h2_bytes_start, 
+        $h1_nb_msg_end, $h1_bytes_end,
+        $h2_nb_msg_end, $h2_bytes_end, 
+        
+        $timeout,
+	$timestart, $timestart_int, $timeend,
+        $timebefore,
+        $ssl1, $ssl2, 
+        $ssl1_SSL_version, $ssl2_SSL_version,
+	$tls1, $tls2,
+	$uid1, $uid2,
+        $authuser1, $authuser2,
+        $proxyauth1, $proxyauth2,
+        $authmech1, $authmech2,
+        $split1, $split2,
+        $reconnectretry1, $reconnectretry2,
+	$relogin1, $relogin2,
+	$tests, $test_builder, $tests_debug,
+	$allow3xx, $justlogin,
+	$tmpdir,
+	$releasecheck,
+	$max_msg_size_in_bytes,
+	$modules_version,
+	$delete2folders, $delete2foldersonly, $delete2foldersbutnot,
+	$usecache, $debugcache, $cacheaftercopy,
+	$wholeheaderifneeded, %h1_msgs_copy_by_uid, $useuid, $h2_uidguess,
+        $addheader,
+        %h1, %h2,
+        $checkselectable, $checkmessageexists,
+        $expungeaftereach,
+        $abletosearch,
+        $showpasswords,
+        $fixslash2,
+        $messageidnodomain,
+        $fixInboxINBOX,
+        $maxlinelength,
+        $minmaxlinelength,
+	$uidnext_default,
+        $fixcolonbug,
+        $create_folder_old,
+        $maxmessagespersecond,
+        $maxbytespersecond,
+        $skipcrossduplicates, $debugcrossduplicates,
+        $log, $logfile,
+	$disarmreadreceipts,
+        $mixfolders,
+);
+
+# main program
+
+# global variables initialisation
+
+$rcs = '$Id: imapsync,v 1.601 2014/10/28 10:48:07 gilles Exp gilles $ ';
+
+$total_bytes_transferred   = 0;
+$total_bytes_skipped = 0;
+$total_bytes_error   = 0;
+$nb_msg_transferred = 0;
+$nb_msg_skipped = $nb_msg_skipped_dry_mode = 0;
+$h1_nb_msg_deleted = $h2_nb_msg_deleted = 0;
+$h1_nb_msg_duplicate = $h2_nb_msg_duplicate = 0;
+$h1_nb_msg_noheader = $h2_nb_msg_noheader = 0;
+$h1_total_bytes_duplicate = $h2_total_bytes_duplicate = 0;
+
+
+$h1_nb_msg_at_start     = $h1_bytes_start = 0 ;
+$h2_nb_msg_start     = $h2_bytes_start = 0 ;
+$h1_nb_msg_processed = $h1_bytes_processed = 0 ;
+
+$h1_nb_msg_end = $h1_bytes_end = 0 ;
+$h2_nb_msg_end = $h2_bytes_end = 0 ;
+
+$nb_errors = 0;
+$max_msg_size_in_bytes = 0;
+
+my %month_abrev = (
+   Jan => 0,
+   Feb => 1,
+   Mar => 2,
+   Apr => 3,
+   May => 4,
+   Jun => 5,
+   Jul => 6,
+   Aug => 7,
+   Sep => 8,
+   Oct => 9,
+   Nov => 10,
+   Dec => 11,
+);
+
+sub EX_USAGE { 
+	# 64 on my linux box.
+        # See http://search.cpan.org/~jmates/Unix-Sysexits-0.02/lib/Unix/Sysexits.pm
+	return( 64 ) ;
+}
+
+
+# @ARGV will be eat by get_options()
+my @argv_copy = @ARGV;
+
+get_options(  ) ;
+
+# $SIG{ INT } = \&catch_continue ;
+local $SIG{ INT } = local $SIG{ QUIT } = local $SIG{ TERM } = \&catch_exit ;
+
+$timestart = time(  );
+
+$log       = defined($log)     ? $log : 1 ;
+$logfile   = defined($logfile) ? $logfile : logfile( $timestart, $user2 ) ;
+
+teelaunch( $logfile ) if ( $log ) ;
+
+$timestart_int = int( $timestart ) ;
+$timebefore = $timestart ;
+
+my $timestart_str = localtime( $timestart ) ;
+print "Transfer started at $timestart_str\n" ;
+print "PID is $PROCESS_ID\n" ;
+print "Log file is $logfile\n" if ( $log ) ;
+$modules_version = defined( $modules_version ) ? $modules_version : 1 ;
+
+# If you want releasecheck not to be done by default (like the github maintainer),
+# then uncomment the first "$releasecheck =" line, the line ending with "0 ;".
+# The second line (ending with "1 ;") can stay active or be commented, 
+# the result will be the same: no releasecheck by default.
+
+#$releasecheck = defined($releasecheck) ? $releasecheck : 0 ;
+$releasecheck = defined($releasecheck) ? $releasecheck : 1 ;
+
+my $warn_release = ($releasecheck) ? check_last_release() : '' ;
+
+# default values
+
+$tmpdir ||= File::Spec->tmpdir();
+$pidfile ||= $tmpdir . '/imapsync.pid';
+
+$pidfilelocking = defined( $pidfilelocking ) ? $pidfilelocking : 0 ;
+
+# allow Mail::IMAPClient 3.0.xx by default
+$allow3xx = defined($allow3xx) ? $allow3xx : 1;
+
+$wholeheaderifneeded  = defined( $wholeheaderifneeded )  ? $wholeheaderifneeded  : 1;
+
+# turn on RFC standard flags correction like \SEEN -> \Seen
+$flagsCase = defined( $flagsCase ) ? $flagsCase : 1 ;
+
+# Use PERMANENTFLAGS if available
+$filterflags = defined( $filterflags ) ? $filterflags : 1 ;
+
+# sync flags just after an APPEND, some servers ignore the flags given in the APPEND
+# like MailEnable IMAP server.
+# Off by default since it takes time.
+$syncflagsaftercopy = defined( $syncflagsaftercopy ) ? $syncflagsaftercopy : 0 ;
+
+
+
+# turn on relogin 5 by default
+$relogin1 = defined( $relogin1 ) ? $relogin1 : 5 ;
+$relogin2 = defined( $relogin2 ) ? $relogin2 : 5 ;
+
+if ( $fast ) {
+	# $useuid = 1 ;
+	# $foldersizes      = 0 ;
+	# $foldersizesatend = 0 ;
+}
+
+# Activate --usecache if --useuid is set and no --nousecache
+$usecache = 1 if ( $useuid and ( ! defined( $usecache ) ) ) ;
+$cacheaftercopy = 1 if ( $usecache and ( ! defined( $cacheaftercopy ) ) ) ;
+
+$checkselectable = defined( $checkselectable ) ? $checkselectable : 1 ;
+$checkmessageexists = defined( $checkmessageexists ) ? $checkmessageexists : 0 ;
+$expungeaftereach = defined( $expungeaftereach ) ? $expungeaftereach : 1 ;
+$abletosearch = defined( $abletosearch ) ? $abletosearch : 1 ;
+$checkmessageexists = 0 if ( not $abletosearch ) ;
+$showpasswords = defined( $showpasswords ) ? $showpasswords : 0 ;
+$fixslash2 = defined( $fixslash2 ) ? $fixslash2 : 1 ;
+$fixInboxINBOX = defined( $fixInboxINBOX ) ? $fixInboxINBOX : 1 ;
+$create_folder_old = defined( $create_folder_old ) ? $create_folder_old : 0 ;
+$mixfolders = defined( $mixfolders ) ? $mixfolders : 1 ;
+
+
+$delete2duplicates = 1 if ( $delete2 and ( ! defined( $delete2duplicates ) ) ) ;
+
+$maxmessagespersecond = defined( $maxmessagespersecond ) ? $maxmessagespersecond : 0 ;
+$maxbytespersecond    = defined( $maxbytespersecond )    ? $maxbytespersecond    : 0 ;
+
+print banner_imapsync(@argv_copy);
+
+print "Temp directory is $tmpdir\n";
+
+is_valid_directory( $tmpdir ) || croak "Error creating tmpdir $tmpdir : $!" ;
+write_pidfile( $pidfile ) if ( $pidfile ) ;
+
+$fixcolonbug = defined( $fixcolonbug ) ? $fixcolonbug : 1 ;
+
+if ( $usecache and $fixcolonbug ) { tmpdir_fix_colon_bug(  ) } ;
+
+$modules_version and print "Modules version list:\n", modules_VERSION(), "\n";
+
+check_lib_version() or 
+  croak "imapsync needs perl lib Mail::IMAPClient release 3.25 or superior \n";
+
+exit_clean( 0 ) if ( $justbanner ) ;
+
+# By default, 100 at a time, not more.
+$split1 ||= 100;
+$split2 ||= 100;
+
+$host1 || missing_option("--host1") ;
+$port1 ||= ( $ssl1 ) ? 993 : 143;
+
+$host2 || missing_option("--host2") ;
+$port2 ||= ( $ssl2 ) ? 993 : 143;
+
+$debugimap1 = $debugimap2 = 1 if ( $debugimap ) ;
+$debug = 1 if ( $debugimap1 or $debugimap2 ) ;
+
+# By default, don't take size to compare 
+$skipsize = (defined $skipsize) ? $skipsize : 1;
+
+$uid1 = defined($uid1) ? $uid1 : 1;
+$uid2 = defined($uid2) ? $uid2 : 1;
+
+$subscribe = defined($subscribe) ? $subscribe : 1;
+
+# Allow size mismatch by default
+$allowsizemismatch = defined($allowsizemismatch) ? $allowsizemismatch : 1;
+
+$delete2folders = 1 
+    if ( defined( $delete2foldersbutnot ) or defined( $delete2foldersonly ) ) ;
+
+if ($justconnect) {
+	justconnect();
+	exit_clean(0);
+}
+
+$user1 || missing_option("--user1");
+$user2 || missing_option("--user2");
+
+$syncinternaldates = defined($syncinternaldates) ? $syncinternaldates : 1;
+
+# Turn on expunge if there is not explicit option --noexpunge and option 
+# --delete is given.
+# Done because --delete --noexpunge is very dangerous on the second run:
+# the Deleted flag is then synced to all previously transfered messages.
+# So --delete implies --expunge is a better usability default behaviour.
+if ($delete) {
+	if ( ! defined($expunge)) {
+		$expunge = 1;
+	}
+}
+
+if ( $uidexpunge2 and not Mail::IMAPClient->can( 'uidexpunge' ) ) {
+        print "Failure: uidexpunge not supported (IMAPClient release < 3.17), use --expunge2 instead\n" ;
+        exit_clean( 3 ) ;
+}
+
+if ( ( $delete2 or $delete2duplicates ) and not defined( $uidexpunge2 ) ) {
+        if ( Mail::IMAPClient->can( 'uidexpunge' ) ) {
+                print "Info: will act as --uidexpunge2\n" ;
+		$uidexpunge2 = 1 ;
+        }elsif ( not defined( $expunge2 ) ) {
+                 print "Info: will act as --expunge2 (no uidexpunge support)\n" ;
+                $expunge2 = 1 ;
+        }
+}
+
+if ( $delete and $delete2 ) {
+	print "Warning: using --delete and --delete2 together is almost always a bad idea, exiting imapsync\n" ;
+	exit_clean( 4 ) ;
+}
+
+if ($idatefromheader) {
+	print "Turned ON idatefromheader, ",
+	      "will set the internal dates on host2 from the 'Date:' header line.\n";
+	$syncinternaldates = 0;
+}
+
+if ($syncinternaldates) {
+	print "Info: turned ON syncinternaldates, ",
+	      "will set the internal dates (arrival dates) on host2 same as host1.\n";
+}else{
+	print "Info: turned OFF syncinternaldates\n";
+}
+
+
+
+if (defined($authmd5) and ($authmd5)) {
+	$authmd51 = 1 ;
+	$authmd52 = 1 ;
+}
+
+if (defined($authmd51) and ($authmd51)) {
+	$authmech1 ||= 'CRAM-MD5';
+}
+else{
+	$authmech1 ||= $authuser1 ? 'PLAIN' : 'LOGIN';
+}
+
+if (defined($authmd52) and ($authmd52)) {
+	$authmech2 ||= 'CRAM-MD5';
+}
+else{
+	$authmech2 ||= $authuser2 ? 'PLAIN' : 'LOGIN';
+}
+
+$authmech1 = uc($authmech1);
+$authmech2 = uc($authmech2);
+
+if (defined $proxyauth1 && !$authuser1) {
+        missing_option("With --proxyauth1, --authuser1");
+}
+
+if (defined $proxyauth2 && !$authuser2) {
+        missing_option("With --proxyauth2, --authuser2");
+}
+
+$authuser1 ||= $user1;
+$authuser2 ||= $user2;
+
+print "Info: will try to use $authmech1 authentication on host1\n";
+print "Info: will try to use $authmech2 authentication on host2\n";
+
+$timeout = defined( $timeout ) ? $timeout : 120 ;
+print "Info: imap connexions timeout is $timeout seconds\n";
+
+
+$syncacls = (defined($syncacls)) ? $syncacls : 0 ;
+$foldersizes = (defined($foldersizes)) ? $foldersizes : 1 ;
+$foldersizesatend = (defined($foldersizesatend)) ? $foldersizesatend : $foldersizes ;
+
+
+
+$fastio1 = (defined($fastio1)) ? $fastio1 : 0;
+$fastio2 = (defined($fastio2)) ? $fastio2 : 0;
+
+$reconnectretry1 = (defined($reconnectretry1)) ? $reconnectretry1 : 3;
+$reconnectretry2 = (defined($reconnectretry2)) ? $reconnectretry2 : 3;
+
+# Since select_msgs() returns no messages when uidnext does not return something
+# then $uidnext_default is never used. So I have to remove it.
+$uidnext_default = 999999 ;
+
+@useheader = ( "Message-Id", "Message-ID", "Received" ) unless ( @useheader ) ;
+
+my %useheader ;
+
+# Make a hash %useheader of each --useheader 'key' in uppercase
+for ( @useheader ) { $useheader{ uc( $_ ) } = undef } ;
+
+#require Data::Dumper ;
+#print Data::Dumper->Dump( [ \%useheader ] ) ;
+#exit ;
+
+print "Host1: IMAP server [$host1] port [$port1] user [$user1]\n";
+print "Host2: IMAP server [$host2] port [$port2] user [$user2]\n";
+
+$password1 || $passfile1 || 'PREAUTH' eq $authmech1 || 'EXTERNAL' eq $authmech1 || do {
+	$password1 = ask_for_password( $authuser1 || $user1, $host1 ) ;
+} ;
+
+$password1 = ( defined( $passfile1 ) ) ? firstline ( $passfile1 ) : $password1 ;
+
+$password2 || $passfile2 || 'PREAUTH' eq $authmech2 || 'EXTERNAL' eq $authmech2 || do {
+	$password2 = ask_for_password( $authuser2 || $user2, $host2 ) ;
+} ;
+
+$password2 = ( defined( $passfile2 ) ) ? firstline ( $passfile2 ) : $password2 ;
+
+
+my $dry_message = '' ;
+$dry_message = "\t(not really since --dry mode)" if $dry ;
+
+$search1 ||= $search if ( $search ) ;
+$search2 ||= $search if ( $search ) ;
+
+if ( $disarmreadreceipts ) {
+	push( @regexmess, 's{\A(.*?(?! ^$))^Disposition-Notification-To:(.*?)$}{$1X-Disposition-Notification-To:$2}igxms' ) ;
+}
+
+if ( @regexmess ) {
+	my $string = regexmess( '' ) ;
+        # string undef means one of the eval regex was bad.
+        if ( not ( defined( $string ) ) ) {
+        	die_clean( "Error: one of --regexmess option is bad, check it" ) ;
+        }
+}
+
+if ( @regexflag and not ( defined( flags_regex( '' ) ) ) ) {
+        die_clean( "Error: one of --regexmess option is bad, check it" ) ;
+}
+
+my $imap1 = ();
+my $imap2 = ();
+
+$debugimap1 and print "Host1 connection\n";
+$imap1 = login_imap($host1, $port1, $user1, $domain1, $password1, 
+		   $debugimap1, $timeout, $fastio1, $ssl1, $tls1,
+		   $authmech1, $authuser1, $reconnectretry1,
+		   $proxyauth1, $uid1, $split1, 'Host1', $ssl1_SSL_version );
+
+$debugimap2 and print "Host2 connection\n";
+$imap2 = login_imap($host2, $port2, $user2, $domain2, $password2, 
+		 $debugimap2, $timeout, $fastio2, $ssl2, $tls2,
+		 $authmech2, $authuser2, $reconnectretry2,
+		 $proxyauth2, $uid2, $split2, 'Host2', $ssl2_SSL_version );
+
+
+$debug and print "Host1 Buffer I/O: ", $imap1->Buffer(), "\n";
+$debug and print "Host2 Buffer I/O: ", $imap2->Buffer(), "\n";
+
+
+
+die_clean( 'Not authenticated on host1' ) unless $imap1->IsAuthenticated( ) ;
+print "Host1: state Authenticated\n";
+die_clean( 'Not authenticated on host2' ) unless   $imap2->IsAuthenticated( ) ;
+print "Host2: state Authenticated\n";
+
+print "Host1 capability: ", join(" ", @{ $imap1->capability_update() || [] }), "\n";
+print "Host2 capability: ", join(" ", @{ $imap2->capability_update() || [] }), "\n";
+
+
+if ( $justlogin ) {
+	$imap1->logout(  ) ;
+	$imap2->logout(  ) ;
+	exit_clean( 0 ) ;
+}
+# 
+# Folder stuff
+#
+
+my (
+@h1_folders_all , %h1_folders_all , @h1_folders_wanted , %requested_folder , 
+%h1_subscribed_folder , %h2_subscribed_folder , 
+@h2_folders_all , %h2_folders_all , %h2_folders_all_UPPER , 
+@h2_folders_from_1_wanted , %h2_folders_from_1_wanted , 
+%h2_folders_from_1_several , 
+%h2_folders_from_1_all ,
+) ;
+
+
+# Make a hash of subscribed folders in both servers.
+
+for ( $imap1->subscribed(  ) ) { $h1_subscribed_folder{ $_ } = 1 } ;
+for ( $imap2->subscribed(  ) ) { $h2_subscribed_folder{ $_ } = 1 } ;
+
+# All folders on host1 and host2
+@h1_folders_all = sort $imap1->folders();
+@h2_folders_all = sort $imap2->folders();
+
+for ( @h1_folders_all ) { $h1_folders_all{ $_ } = 1 } ;
+for ( @h2_folders_all ) { 
+	$h2_folders_all{ $_ } = 1 ;
+	$h2_folders_all_UPPER{ uc( $_ ) } = 1 ;
+} ;
+
+if ( $fixInboxINBOX and ( my $reg = fix_Inbox_INBOX_mapping( \%h1_folders_all, \%h2_folders_all ) ) ) {
+	#print "RRRRRR $reg\n" ;
+	push( @regextrans2, $reg ) ;
+} 
+
+if (scalar(@folder) or $subscribed or scalar(@folderrec)) {
+	# folders given by option --folder
+	if (scalar(@folder)) {
+		add_to_requested_folders(@folder);
+	}
+	
+	# option --subscribed
+	if ( $subscribed ) {
+		add_to_requested_folders( keys ( %h1_subscribed_folder ) ) ;
+	}
+	
+	# option --folderrec
+	if (scalar(@folderrec)) {
+		foreach my $folderrec (@folderrec) {
+			add_to_requested_folders($imap1->folders($folderrec));
+		}
+	}
+}
+else {
+	# no include, no folder/subscribed/folderrec options => all folders
+	if (not scalar(@include)) {
+		add_to_requested_folders(@h1_folders_all);
+	}
+}
+
+
+# consider (optional) includes and excludes
+if ( scalar( @include ) ) {
+	foreach my $include ( @include ) {
+		my @included_folders = grep { /$include/ } @h1_folders_all ;
+		add_to_requested_folders( @included_folders ) ;
+                my $included_folders = join( " ", map( "[$_]", @included_folders ) ) ;
+		print "Including folders matching pattern '$include': " . $included_folders . "\n" ;
+	}
+}
+
+if ( scalar( @exclude ) ) {
+	foreach my $exclude ( @exclude ) {
+		my @requested_folder = sort( keys( %requested_folder ) ) ;
+		my @excluded_folders = grep { /$exclude/ } @requested_folder ;
+		remove_from_requested_folders( @excluded_folders ) ;
+                my $excluded_folders = join( " ", map( "[$_]", @excluded_folders ) ) ;
+		print "Excluding folders matching pattern '$exclude': " . $excluded_folders . "\n" ;
+	}
+}
+
+# Remove no selectable folders
+
+$checkselectable and do {
+	foreach my $folder (keys(%requested_folder)) {
+        	if ( not $imap1->selectable($folder)) {
+			print "Warning: ignoring folder $folder because it is not selectable\n";
+                	remove_from_requested_folders($folder);
+        	}
+	}
+} ;
+
+@h1_folders_wanted = sort_requested_folders(  ) ;
+
+#my $h1_namespace = $imap1->namespace() ;
+#my $h2_namespace = $imap2->namespace() ;
+#require Data::Dumper ;
+#$debug and print "Host1 namespace:\n", Data::Dumper->Dump([$h1_namespace]) ;
+#$debug and print "Host2 namespace:\n", Data::Dumper->Dump([$h2_namespace]) ;
+
+my($h1_sep,$h2_sep); 
+# what are the private folders separators for each server ?
+
+$debug and print "Getting separators\n" ;
+$h1_sep = get_separator( $imap1, $sep1, "--sep1", "Host1" ) ;
+$h2_sep = get_separator( $imap2, $sep2, "--sep2", "Host2" ) ;
+
+my( $h1_prefix, $h2_prefix ) ; 
+$h1_prefix = get_prefix( $imap1, $prefix1, "--prefix1", "Host1" ) ;
+$h2_prefix = get_prefix( $imap2, $prefix2, "--prefix2", "Host2" ) ;
+
+
+print "Host1 separator and prefix: [$h1_sep][$h1_prefix]\n" ;
+print "Host2 separator and prefix: [$h2_sep][$h2_prefix]\n" ;
+
+#my $h1_xlist_folders = $imap1->xlist_folders(  ) ;
+#my $h2_xlist_folders = $imap2->xlist_folders(  ) ;
+#require Data::Dumper ;
+#print "Host1 xlist:\n", Data::Dumper->Dump([$h1_xlist_folders]) ;
+#print "Host2 xlist:\n", Data::Dumper->Dump([$h2_xlist_folders]) ;
+
+#exit ;
+
+foreach my $h1_fold ( @h1_folders_wanted ) {
+	my $h2_fold ;
+	$h2_fold = imap2_folder_name( $h1_fold ) ;
+	$h2_folders_from_1_wanted{ $h2_fold }++ ;
+        if ( 1 < $h2_folders_from_1_wanted{ $h2_fold } ) {
+        	$h2_folders_from_1_several{ $h2_fold }++ ;
+        }
+} 
+@h2_folders_from_1_wanted = sort keys(%h2_folders_from_1_wanted);
+
+foreach my $h1_fold ( @h1_folders_all ) {
+	my $h2_fold ;
+	$h2_fold = imap2_folder_name( $h1_fold ) ;
+	$h2_folders_from_1_all{ $h2_fold }++ ;
+}
+
+
+sub jux_utf8 {
+	# juxtapose utf8 at the right if different
+        my ( $s_utf7 ) =  shift ;
+        my ( $s_utf8 ) =  imap_utf7_decode( $s_utf7 ) ;
+        
+        if ( $s_utf7 eq $s_utf8 ) {
+        	return( "[$s_utf7]" ) ;
+        }else{
+        	print "[$s_utf7]\t[$s_utf8]\n" ;
+        	return( "[$s_utf7]\t[$s_utf8]" ) ;
+        }
+}
+
+sub tests_jux_utf8 {
+	ok( "[INBOX]" eq jux_utf8( 'INBOX'), 'jux_utf8: INBOX => [INBOX]' ) ;
+	ok( "[&ZTZO9nux-]\t[

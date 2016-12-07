@@ -1,0 +1,4 @@
+
+RewriteEngine on
+RewriteRule "^paypal_return.shtml" "/S/paypal_return.shtml"
+
